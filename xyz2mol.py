@@ -29,6 +29,8 @@ import numpy as np
 from rdkit import Chem
 from rdkit.Chem import AllChem
 
+from ase import io
+
 __version__ = "1.0.0"
 
 global __ATOM_LIST__
@@ -163,6 +165,20 @@ atomic_valence_electrons[32] = 4
 atomic_valence_electrons[35] = 7
 atomic_valence_electrons[53] = 7
 
+
+def canonicalize_smiles(mol, isomericSmiles=False):
+    
+    if type(mol) == str:
+        try:
+            mol = Chem.MolFromSmiles(smiles)
+        except e:
+            print(e)
+        
+    smiles = Chem.MolToSmiles(mol, isomericSmiles=isomericSmiles)
+    m = Chem.MolFromSmiles(smiles)
+    smiles = Chem.MolToSmiles(m, isomericSmiles=isomericSmiles)
+    
+    return smiles
 
 def str_atom(atom):
     """
@@ -928,11 +944,8 @@ def main():
         else:
             # Canonical hack
             isomeric_smiles = not args.ignore_chiral
-            smiles = Chem.MolToSmiles(mol, isomericSmiles=isomeric_smiles)
-            m = Chem.MolFromSmiles(smiles)
-            smiles = Chem.MolToSmiles(m, isomericSmiles=isomeric_smiles)
+            smiles = canonicalize_smiles(mol, isomericSmiles=isomeric_smiles)
             print(smiles)
-
 
 if __name__ == "__main__":
     main()
