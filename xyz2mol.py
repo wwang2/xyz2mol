@@ -482,7 +482,7 @@ def get_UA_pairs(UA, AC, use_graph=True):
     return UA_pairs
 
 
-def AC2BO(AC, atoms, charge, allow_charged_fragments=True, use_graph=True):
+def AC2BO(AC, atoms, charge, allow_charged_fragments=True, use_graph=True, ignoreH=False):
     """
 
     implemenation of algorithm shown in Figure 2
@@ -503,7 +503,7 @@ def AC2BO(AC, atoms, charge, allow_charged_fragments=True, use_graph=True):
     AC_valence = list(AC.sum(axis=1))
 
     for i, (atomicNum, valence) in enumerate(zip(atoms, AC_valence)):
-        # valence can't be smaller than number of neighbourgs
+        # valence can't be smaller than number of neighbours
         possible_valence = [x for x in atomic_valence[atomicNum] if x >= valence]
         if not possible_valence:
             print(
@@ -547,7 +547,7 @@ def AC2BO(AC, atoms, charge, allow_charged_fragments=True, use_graph=True):
 
         UA_pairs_list = get_UA_pairs(UA, AC, use_graph=use_graph)
         for UA_pairs in UA_pairs_list:
-            BO = get_BO(AC, UA, DU_from_AC, valences, UA_pairs, use_graph=use_graph)
+            BO = get_BO(AC, UA, DU_from_AC, valences, UA_pairs, use_graph=use_graph) # get bond order 
             status = BO_is_OK(
                 BO,
                 AC,
@@ -643,7 +643,7 @@ def read_xyz_file(filename, look_for_charge=True):
     return atoms, charge, xyz_coordinates
 
 
-def xyz2AC(atoms, xyz, charge, use_huckel=False):
+def xyz2AC(atoms, xyz, charge, use_huckel=False, ignoreHH=False):
     """
 
     atoms and coordinates to atom connectivity (AC)
@@ -665,10 +665,10 @@ def xyz2AC(atoms, xyz, charge, use_huckel=False):
     if use_huckel:
         return xyz2AC_huckel(atoms, xyz, charge)
     else:
-        return xyz2AC_vdW(atoms, xyz)
+        return xyz2AC_vdW(atoms, xyz, ignoreHH=ignoreHH)
 
 
-def xyz2AC_vdW(atoms, xyz):
+def xyz2AC_vdW(atoms, xyz, ignoreHH):
 
     # Get mol template
     mol = get_proto_mol(atoms)
@@ -679,12 +679,12 @@ def xyz2AC_vdW(atoms, xyz):
         conf.SetAtomPosition(i, (xyz[i][0], xyz[i][1], xyz[i][2]))
     mol.AddConformer(conf)
 
-    AC = get_AC(mol)
+    AC = get_AC(mol, ignoreHH=ignoreHH)
 
     return AC, mol
 
 
-def get_AC(mol, covalent_factor=1.3):
+def get_AC(mol, covalent_factor=1.3, ignoreHH=False):
     """
 
     Generate adjacent matrix from atoms and coordinates.
@@ -698,7 +698,7 @@ def get_AC(mol, covalent_factor=1.3):
         mol - rdkit molobj with 3D conformer
 
     optional
-        covalent_factor - increase covalent bond length threshold with facto
+        covalent_factor - increase covalent bond length threshold 
 
     returns:
         AC - adjacent matrix
@@ -718,9 +718,18 @@ def get_AC(mol, covalent_factor=1.3):
         for j in range(i + 1, num_atoms):
             a_j = mol.GetAtomWithIdx(j)
             Rcov_j = pt.GetRcovalent(a_j.GetAtomicNum()) * covalent_factor
+
             if dMat[i, j] <= Rcov_i + Rcov_j:
-                AC[i, j] = 1
-                AC[j, i] = 1
+
+                if not (a_i.GetAtomicNum() == 1. and a_j.GetAtomicNum() == 1.):
+                    AC[i, j] = 1
+                    AC[j, i] = 1
+                else: 
+                    if ignoreHH:
+                        pass
+                    else:
+                        AC[i, j] = 1
+                        AC[j, i] = 1
 
     return AC
 
@@ -793,6 +802,7 @@ def xyz2mol(
     use_graph=True,
     use_huckel=False,
     embed_chiral=True,
+    ignoreHH=False
 ):
     """
     Generate a rdkit molobj from atoms, coordinates and a total_charge.
@@ -815,7 +825,7 @@ def xyz2mol(
 
     # Get atom connectivity (AC) matrix, list of atomic numbers, molecular charge,
     # and mol object with no connectivity information
-    AC, mol = xyz2AC(atoms, coordinates, charge, use_huckel=use_huckel)
+    AC, mol = xyz2AC(atoms, coordinates, charge, use_huckel=use_huckel, ignoreHH=ignoreHH)
 
     # Convert AC to bond order matrix and add connectivity and charge info to
     # mol object
